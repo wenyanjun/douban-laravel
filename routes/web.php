@@ -34,6 +34,9 @@ Route::get("review", [IndexController::class,'review']);
 // 微信相关
 Route::post("upload",[WxController::class, 'uploadImage']);
 
+// 登录
+Route::get("login",[WxController::class, 'login']);
+
 //// 名人介绍
 //Route::get("celebrity",'index/Index/Get_celebrity');
 //// tag
