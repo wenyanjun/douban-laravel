@@ -35,7 +35,9 @@ class IndexController extends Controller
             $s1 = substr($descript, 0, $index);
             // php中一个汉字占用三个字节
             $s1= substr($s1, 7);
-            $director = trim($s1);
+            $s1 = trim($s1);
+            // 不间断空格 chr(194).chr(160) \u00A0
+            $director = str_replace(chr(194).chr(160),"",$s1);
             $star = $info->find('.bd .rating_num')->text();
             $quote = $info->find('.bd .inq')->text();
             return [

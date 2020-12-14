@@ -39,8 +39,11 @@ class WxController extends Controller
         $response = $client->get($url);
         $data = json_decode($response->getBody()->getContents(),true);
 
-        if (array_key_exists("errcode",$data) && $data['errcode'] == 40163){
-            return json_error("code过期");
+        if (array_key_exists("errcode",$data)){
+            if($data['errcode'] == 40163){
+                return json_error("code过期");
+            }
+            return json_error("code无效");
         }
         return json_success($data);
     }
