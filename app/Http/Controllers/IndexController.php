@@ -8,7 +8,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MovieDetail;
 use App\Models\MovieReviews;
+use App\Models\Playing;
+use App\Models\Showing;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -23,7 +26,32 @@ class IndexController extends Controller
     {
         return '简书关注coderYJ 欢迎加QQ群讨论277030213';
     }
+    public function delete(){
+        // 每天凌晨运行一次
+        // 即将上映
+        $showing = Showing::all()->toArray();
+        for($i=0; $i<count($showing); $i++){
+            $obj = $showing[$i];
+            $m_id = $obj['m_id'];
+            // 删除电影评论
+            MovieReviews::query()->where('m_id','=',$m_id)->delete();
+            // 删除电影详情
+            MovieDetail::query()->where('m_id','=',$m_id)->delete();
+        }
+        Showing::query()->truncate();
 
+        // 正在上映
+        $playing = Playing::all()->toArray();
+        for($i = 0; $i<count($playing); $i++){
+            $obj = $playing[$i];
+            $m_id = $obj['m_id'];
+            // 删除电影评论
+            MovieReviews::query()->where('m_id','=',$m_id)->delete();
+            // 删除电影详情
+            MovieDetail::query()->where('m_id','=',$m_id)->delete();
+        }
+        Playing::query()->truncate();
+    }
     public function top250(Request $request)
     {
         $page = $request->input("page", 0) * 1;

@@ -29,7 +29,9 @@ Route::get("search",[IndexController::class,'search']);
 // info 影片信息
 Route::get("info",[IndexController::class,'info']);
 // review 影片评论
-Route::get("review", [IndexController::class,'reviews']);
+Route::get("reviews", [IndexController::class,'reviews']);
+
+Route::get("delete",[IndexController::class, 'delete']);
 
 // 微信相关
 Route::post("upload",[WxController::class, 'uploadImage']);
