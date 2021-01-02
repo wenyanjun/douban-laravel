@@ -17,7 +17,6 @@ use Illuminate\Support\Facades\DB;
 use QL\QueryList;
 use Illuminate\Support\Facades\Cache;
 
-
 class IndexController extends Controller
 {
     public function index()
@@ -190,10 +189,11 @@ class IndexController extends Controller
         $q = $request->input("q", "");
         $page = $request->input("page", 0) * 1;
         if ($page <= 0) $page = 0;
-        
+
         // 关键字
         $search = 'search' .$q.$page;
-        $obj = Cache::remember($search,60*24*3,function () use ($page, $q) {
+        $obj = null;
+        $obj = Cache::remember($search,60*24*3,function () use ($page, $q, &$obj) {
             $SearchUrl = 'https://m.douban.com/j/search/?q=' . $q . '&t=movie&p=' . $page;
             $data = json_decode(self::http_get($SearchUrl), true);
             $ql = QueryList::getInstance();
