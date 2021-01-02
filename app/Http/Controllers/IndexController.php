@@ -13,15 +13,13 @@ use App\Models\MovieReviews;
 use App\Models\Playing;
 use App\Models\Showing;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\DB;
 use QL\QueryList;
+use Illuminate\Support\Facades\Cache;
+
 
 class IndexController extends Controller
 {
-    private $global_id = "";
-
     public function index()
     {
         return '简书关注coderYJ 欢迎加QQ群讨论277030213';
@@ -145,7 +143,6 @@ class IndexController extends Controller
     // 即将上映
     public function showing(Request $request)
     {
-
         $city = $request->input("city", "guangzhou");
         $table = DB::table('showing');
         $data = $table->get()->toArray();
@@ -193,26 +190,33 @@ class IndexController extends Controller
         $q = $request->input("q", "");
         $page = $request->input("page", 0) * 1;
         if ($page <= 0) $page = 0;
-        $SearchUrl = 'https://m.douban.com/j/search/?q=' . $q . '&t=movie&p=' . $page;
-        $data = json_decode(self::http_get($SearchUrl), true);
-        $ql = QueryList::getInstance();
-        $count = $data['count'];
-        $limit = $data['limit'];
-        $html = $data['html'];
-        $data = $ql->setHtml($html)->find('li')->children('a')->map(function ($item) {
-            $id = $item->href;
-            preg_match('#subject/([\d\D]*?)/#', $id, $ids);
-            $img = $item->find('img')->src;
-            $title = $item->find('.subject-title')->text();
-            $rating = $item->find('.rating')->text();
-            return [
-                'id' => $ids[1],
-                'img' => $img,
-                'title' => $title,
-                'rating' => $rating
-            ];
-        })->all();
-        $obj = array('total' => $count, 'limit' => $limit, 'page' => $page, 'subject' => $data);
+        
+        // 关键字
+        $search = 'search' .$q.$page;
+        $obj = Cache::remember($search,60*24*3,function () use ($page, $q) {
+            $SearchUrl = 'https://m.douban.com/j/search/?q=' . $q . '&t=movie&p=' . $page;
+            $data = json_decode(self::http_get($SearchUrl), true);
+            $ql = QueryList::getInstance();
+            $count = $data['count'];
+            $limit = $data['limit'];
+            $html = $data['html'];
+            $data = $ql->setHtml($html)->find('li')->children('a')->map(function ($item) {
+                $id = $item->href;
+                preg_match('#subject/([\d\D]*?)/#', $id, $ids);
+                $img = $item->find('img')->src;
+                $title = $item->find('.subject-title')->text();
+                $rating = $item->find('.rating')->text();
+                return [
+                    'id' => $ids[1],
+                    'img' => $img,
+                    'title' => $title,
+                    'rating' => $rating
+                ];
+            })->all();
+            $obj = array('total' => $count, 'limit' => $limit, 'page' => $page, 'subject' => $data);
+            return $obj;
+        });
+
         return json_success($obj);
     }
 
@@ -299,8 +303,6 @@ class IndexController extends Controller
         }
         if ($page < 0) $page = 0;
 
-        // 借助全局变量
-        $this->global_id = $id;
         // 每页显示数量
         $perPage = 20;
 
@@ -340,7 +342,7 @@ class IndexController extends Controller
         }catch (\Exception $e){
             return null;
         }
-        $data = $ql->find('#comments')->children('.comment-item ')->map(function ($item) {
+        $data = $ql->find('#comments')->children('.comment-item ')->map(function ($item) use ($id) {
             $avatar = $item->find('.avatar img')->attr('src');
             $name = $item->find('.comment-info>a')->text();
             $name = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $name);
@@ -349,7 +351,7 @@ class IndexController extends Controller
             $content = $item->find('.comment-content .short')->text();
             $content = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $content);
             return [
-                'm_id'=> $this->global_id,
+                'm_id'=> $id,
                 'avatar' => $avatar,
                 "name" => $name,
                 'rating' => $rating,
