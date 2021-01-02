@@ -5,148 +5,222 @@
  * @GitHub https://github.com/wenyanjun/douban
  * 爬虫框架地址 http://querylist.cc/docs/api/v4/Elements-introduce
  */
+
 namespace App\Http\Controllers;
 
+use App\Models\MovieDetail;
+use App\Models\MovieReviews;
+use App\Models\Playing;
+use App\Models\Showing;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\DB;
 use QL\QueryList;
 
 class IndexController extends Controller
 {
-    public function index(){
+    private $global_id = "";
+
+    public function index()
+    {
         return '简书关注coderYJ 欢迎加QQ群讨论277030213';
+    }
+    public function delete(){
+        // 每天凌晨运行一次
+        // 即将上映
+        $showing = Showing::all()->toArray();
+        for($i=0; $i<count($showing); $i++){
+            $obj = $showing[$i];
+            $m_id = $obj['m_id'];
+            // 删除电影评论
+            MovieReviews::query()->where('m_id','=',$m_id)->delete();
+            // 删除电影详情
+            MovieDetail::query()->where('m_id','=',$m_id)->delete();
+        }
+        Showing::query()->truncate();
+
+        // 正在上映
+        $playing = Playing::all()->toArray();
+        for($i = 0; $i<count($playing); $i++){
+            $obj = $playing[$i];
+            $m_id = $obj['m_id'];
+            // 删除电影评论
+            MovieReviews::query()->where('m_id','=',$m_id)->delete();
+            // 删除电影详情
+            MovieDetail::query()->where('m_id','=',$m_id)->delete();
+        }
+        Playing::query()->truncate();
     }
     public function top250(Request $request)
     {
         $page = $request->input("page", 0) * 1;
 
-        if ($page <=0 ) $page = 0;
-        $page_start = $page * 25;
-        $url = 'https://movie.douban.com/top250?start=' . $page_start;
-        $ql = QueryList::getInstance();
-        $ql = $ql->get($url);
-        $data = $ql->find(".grid_view")->children("li")->map(function ($item){
-            $id = $item->find('.pic a')->href;
-            preg_match('#subject/([\s\S]*?)/#',$id, $ids);
-            $img = $item->find(".pic img")->attr('src');
-            $info = $item->find(".info");
-            $name = $info->find('.title')->eq(0)->text();
-            $descript = $info->find('.bd p')->text();
-            $index = strpos($descript, '主');
-            $s1 = substr($descript, 0, $index);
-            // php中一个汉字占用三个字节
-            $s1= substr($s1, 7);
-            $director = trim($s1);
-            $star = $info->find('.bd .rating_num')->text();
-            $quote = $info->find('.bd .inq')->text();
-            return [
-                'id' => $ids[1],
-                'img' => $img,
-                'name'=>$name,
-                'director'=>$director,
-                'star'=>$star,
-                'quote'=>$quote
-            ];
-        })->all();
+        if ($page <= 0) $page = 0;
+        // 每页显示数量
+        $perPage = 25;
+        $page_start = $page * $perPage;
+        $table = DB::table('top250');
+        $data = $table->where('order_num','>=',$perPage*$page)
+            ->where('order_num','<',$perPage*$page + $perPage)
+            ->orderBy('order_num')
+            ->limit($perPage)
+            ->get()->toArray();
 
-        $obj = array('total'=>250,'limit'=>25,'page'=>$page,'subject'=>$data);
+        if (count($data) == 0){
+            $url = 'https://movie.douban.com/top250?start=' . $page_start;
+            $ql = QueryList::getInstance();
+            $ql = $ql->get($url);
+            $data = $ql->find(".grid_view")->children("li")->map(function ($item) {
+                $id = $item->find('.pic a')->href;
+                preg_match('#subject/([\s\S]*?)/#', $id, $ids);
+                $img = $item->find(".pic img")->attr('src');
+                $info = $item->find(".info");
+                $name = $info->find('.title')->eq(0)->text();
+                $descript = $info->find('.bd p')->text();
+                $index = strpos($descript, '主');
+                $s1 = substr($descript, 0, $index);
+                // php中一个汉字占用三个字节
+                $s1 = substr($s1, 7);
+                $s1 = trim($s1);
+                // 不间断空格 chr(194).chr(160) \u00A0
+                $director = str_replace(chr(194) . chr(160), "", $s1);
+                $director = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $director);
+                $star = $info->find('.bd .rating_num')->text();
+                $quote = $info->find('.bd .inq')->text();
+                return [
+                    'm_id' => $ids[1],
+                    'img' => $img,
+                    'name' => $name,
+                    'director' => $director,
+                    'star' => $star,
+                    'quote' => $quote
+                ];
+            })->all();
+            for($i=0; $i<count($data); $i++){
+                $data[$i]['order_num'] = $perPage * $page + $i;
+            }
+            $table->insert($data);
+        }
+        $obj = array('total' => 250, 'limit' => $perPage, 'page' => $page, 'subject' => $data);
         return json_success($obj);
     }
+
     // 正在上映
-    public function playing(Request $request){
+    public function playing(Request $request)
+    {
 
-        $city = $request->input("city","guangzhou");
+        $city = $request->input("city", "guangzhou");
 
-        $url = "https://movie.douban.com/cinema/nowplaying/$city/";
-        $ql = QueryList::getInstance();
-        $ql = $ql->get($url);
-        $data = $ql->find('#nowplaying .lists')->children('li')->map(function ($item){
-            $img = $item->find('img')->attr('src');
-            return [
-                'id'=>$item->id,
-                'title'=>$item->attr('data-title'),
-                'score'=>$item->attr('data-score'),
-                'star'=>$item->attr('data-star'),
-                'year'=>$item->attr('data-release'),
-                'duration'=>$item->attr('data-duration'),
-                'region'=>$item->attr('data-region'),
-                'director'=>$item->attr('data-director'),
-                'actors'=>$item->attr('data-actors'),
-                'votecount'=>$item->attr('data-votecount'),
-                'img'=>$img
-            ];
-        })->all();
-        $obj = array('title'=>'正在上映','city'=>$city,'subject'=>$data);
+        $table = DB::table('playing');
+        $data = $table->get()->toArray();
+
+        if (count($data) == 0) {
+            $url = "https://movie.douban.com/cinema/nowplaying/$city/";
+            $ql = QueryList::getInstance();
+            $ql = $ql->get($url);
+            $data = $ql->find('#nowplaying .lists')->children('li')->map(function ($item) {
+                $img = $item->find('img')->attr('src');
+                return [
+                    'm_id' => $item->id,
+                    'title' => $item->attr('data-title'),
+                    'score' => $item->attr('data-score'),
+                    'star' => $item->attr('data-star'),
+                    'year' => $item->attr('data-release'),
+                    'duration' => $item->attr('data-duration'),
+                    'region' => $item->attr('data-region'),
+                    'director' => $item->attr('data-director'),
+                    'actors' => $item->attr('data-actors'),
+                    'votecount' => $item->attr('data-votecount'),
+                    'img' => $img
+                ];
+            })->all();
+            // 保存数据库
+            $table->insert($data);
+        }
+        $obj = array('title' => '正在上映', 'city' => $city, 'subject' => $data);
         return json_success($obj);
     }
+
     // 即将上映
-    public function showing(Request $request){
+    public function showing(Request $request)
+    {
 
-        $city = $request->input("city","guangzhou");
-
-        $url = "https://movie.douban.com/cinema/later/$city/";
-        $ql = QueryList::getInstance();
-        $ql = $ql->get($url);
-        $data = $ql->find('#showing-soon')->children('div')->map(function ($item){
-            $img = $item->find('img')->attr('src');
-            # id
-            $id = $item->find('a')->attr('href');
-            preg_match('#subject/([\d\D]*?)/#',$id, $ids);
-            # 标题
-            $title = $item->find('h3')->text();
-            # 日期
-            $lis = $item->find('ul')->children('li');
-            $date = $lis->eq(0)->text();
-            $plot = $lis->eq(1)->text();
-            $region = $lis->eq(2)->text();
-            $see = $lis->eq(3)->text();
-            return [
-                'id'=>$ids[1],
-                'img'=>$img,
-                'title'=>$title,
-                'date'=>$date,
-                'plot'=>$plot,
-                'region'=>$region,
-                'see'=>$see
-            ];
-        })->all();
-        $obj = array('title'=>'即将上映','city'=>$city,'subject'=>$data);
+        $city = $request->input("city", "guangzhou");
+        $table = DB::table('showing');
+        $data = $table->get()->toArray();
+        if (count($data) == 0) {
+            $url = "https://movie.douban.com/cinema/later/$city/";
+            $ql = QueryList::getInstance();
+            $ql = $ql->get($url);
+            $data = $ql->find('#showing-soon')->children('div')->map(function ($item) {
+                $img = $item->find('img')->attr('src');
+                # id
+                $id = $item->find('a')->attr('href');
+                preg_match('#subject/([\d\D]*?)/#', $id, $ids);
+                # 标题
+                $title = $item->find('h3')->text();
+                # 日期
+                $lis = $item->find('ul')->children('li');
+                $date = $lis->eq(0)->text();
+                $plot = $lis->eq(1)->text();
+                $region = $lis->eq(2)->text();
+                $see = $lis->eq(3)->text();
+                return [
+                    'm_id' => $ids[1],
+                    'img' => $img,
+                    'title' => $title,
+                    'date' => $date,
+                    'plot' => $plot,
+                    'region' => $region,
+                    'see' => $see
+                ];
+            })->all();
+            // 保存数据库
+            $table->insert($data);
+        }
+        $obj = array('title' => '即将上映', 'city' => $city, 'subject' => $data);
         return json_success($obj);
     }
+
     /*
     status:0为正常
     Count:搜索结果数
     Data:[[Id,Img,Rating],...]
     */
-    public function search(Request $request){
-        $q = $request->input("q","");
-        $page = $request->input("page",0)*1;
-        if ($page <=0 ) $page = 0;
+    public function search(Request $request)
+    {
+        $q = $request->input("q", "");
+        $page = $request->input("page", 0) * 1;
+        if ($page <= 0) $page = 0;
         $SearchUrl = 'https://m.douban.com/j/search/?q=' . $q . '&t=movie&p=' . $page;
         $data = json_decode(self::http_get($SearchUrl), true);
         $ql = QueryList::getInstance();
         $count = $data['count'];
         $limit = $data['limit'];
         $html = $data['html'];
-        $data = $ql->setHtml($html)->find('li')->children('a')->map(function ($item){
+        $data = $ql->setHtml($html)->find('li')->children('a')->map(function ($item) {
             $id = $item->href;
-            preg_match('#subject/([\d\D]*?)/#',$id, $ids);
+            preg_match('#subject/([\d\D]*?)/#', $id, $ids);
             $img = $item->find('img')->src;
             $title = $item->find('.subject-title')->text();
             $rating = $item->find('.rating')->text();
             return [
-                'id'=>$ids[1],
-                'img'=>$img,
-                'title'=>$title,
-                'rating'=>$rating
+                'id' => $ids[1],
+                'img' => $img,
+                'title' => $title,
+                'rating' => $rating
             ];
         })->all();
-        $obj = array('total'=>$count,'limit'=>$limit,'page'=>$page,'subject'=>$data);
+        $obj = array('total' => $count, 'limit' => $limit, 'page' => $page, 'subject' => $data);
         return json_success($obj);
     }
+
     // 名人搜索
-    public function People($q){
+    public function People($q)
+    {
 //        'https://search.douban.com/movie/subject_search?search_text=%E9%BB%84%E6%B8%A4'
-        $SearchUrl = 'https://movie.douban.com/j/subject_suggest?q='.$q;
+        $SearchUrl = 'https://movie.douban.com/j/subject_suggest?q=' . $q;
         $ApiData = json_decode(self::http_get($SearchUrl), true);
         return $ApiData;
     }
@@ -154,91 +228,144 @@ class IndexController extends Controller
     // 详情
     public function info(Request $request)
     {
-        $id = $request->input("id",'');
-        if (empty($id)){
+        $id = $request->input("id", '');
+        if (empty($id)) {
             return json_error("id不能为空");
         }
-        $url = 'https://movie.douban.com/subject/' . $id . '/';
-        $ql = QueryList::getInstance();
-        $ql = $ql->get($url);
-        $title = $ql->find("#content h1 span")->eq(0)->text();
-        // 图片
-        $img = $ql->find("#mainpic img")->attr('src');
-        // 导演
-        $director = $ql->find("#info>span")->eq(0)->find('.attrs')->text();
-        // 编剧
-        $scriptwriter= $ql->find("#info>span")->eq(1)->find('.attrs')->texts();
-        // 主演
-        $actor = $ql->find("#info .actor")->find('.attrs')->texts();
-        // 地区
+        $table = DB::table("movie_detail");
+        $data = $table->where('m_id', '=', $id)->get()->toArray();
+        if (count($data) == 0) {
+            $url = 'https://movie.douban.com/subject/' . $id . '/';
+            $ql = QueryList::getInstance();
+            try {
+                $ql = $ql->get($url);
+            } catch (\Exception $e) {
+                return json_error("id不合法");
+            }
+            $title = $ql->find("#content h1 span")->eq(0)->text();
+            // 图片
+            $img = $ql->find("#mainpic img")->attr('src');
+            // 导演
+            $director = $ql->find("#info>span")->eq(0)->find('.attrs')->text();
+            // 编剧
+            $scriptwriter = $ql->find("#info>span")->eq(1)->find('.attrs')->texts();
+            // 主演
+            $actor = $ql->find("#info .actor")->find('.attrs')->texts();
+            // 地区
 //        $region = $ql->find("#info>.pl")->eq(1)->newInstance(null);
-        // 类型
-        $type = $ql->find("#info>span[property='v:genre']")->texts();
-        // 上映时间
-        $date = $ql->find("#info>span[property=\"v:initialReleaseDate\"]")->texts();
-        // 时长
-        $runtime = $ql->find("#info>span[property=\"v:runtime\"]")->text();
-        // 评分
-        $rating = $ql->find("#interest_sectl .rating_num")->text();
-        // 描述
-        $summary = $ql->find("#link-report span")->text();
-
-        $data = array(
-            'title'=>$title,
-            'img'=>$img,
-            'director'=>$director,
-            'scriptwriter'=>$scriptwriter,
-            'actor'=>$actor,
-            'type'=>$type,
-            'date'=>$date,
-            'runtime'=>$runtime,
-            'rating'=>$rating,
-            'summary'=>$summary
-        );
+            // 类型
+            $type = $ql->find("#info>span[property='v:genre']")->texts();
+            // 上映时间
+            $date = $ql->find("#info>span[property=\"v:initialReleaseDate\"]")->texts();
+            // 时长
+            $runtime = $ql->find("#info>span[property=\"v:runtime\"]")->text();
+            // 评分
+            $rating = $ql->find("#interest_sectl .rating_num")->text();
+            // 描述
+            $summary = $ql->find("#link-report span")->text();
+            $data = array(
+                'm_id' => $id,
+                'title' => $title,
+                'img' => $img,
+                'director' => $director,
+                'scriptwriter' => $scriptwriter,
+                'actor' => $actor,
+                'type' => $type,
+                'date' => $date,
+                'runtime' => $runtime,
+                'rating' => $rating,
+                'summary' => $summary
+            );
+            $table->insert($data);
+        } else {
+            $d = $data[0];
+            $d->scriptwriter = json_decode($d->scriptwriter, true);
+            $d->actor = json_decode($d->actor, true);
+            $d->type = json_decode($d->type, true);
+            $d->date = json_decode($d->date, true);
+            $data = $d;
+        }
         return json_success($data);
     }
+
+
     // 评论
     public function reviews(Request $request)
     {
-        $page = $request->input("page",0)*1;
-        $id = $request->input("id",'');
-        if (empty($id)){
+        $page = $request->input("page", 0) * 1;
+        $id = $request->input("id", '');
+        if (empty($id)) {
             return json_error("id不能为空");
         }
         if ($page < 0) $page = 0;
-        $url = 'https://movie.douban.com/subject/' . $id . '/comments?sort=new_score&status=P&limit=20&start=' . $page * 20;
-        $ql = QueryList::getInstance();
-        $ql = $ql->get($url);
-        $data = $ql->find('#comments')->children('.comment-item ')->map(function ($item){
-            $avatar = $item->find('.avatar img')->attr('src');
-            $name = $item->find('.comment-info>a')->text();
-            $rating = $item->find('.comment-info .rating')->attr('title');
-            $date = $item->find('.comment-info .comment-time')->text();
-            $content = $item->find('.comment-content .short')->text();
 
-            return [
-                'avatar'=>$avatar,
-                "name"=>$name,
-                'rating'=>$rating,
-                'date'=>$date,
-                'content'=>$content
-            ];
-        })->all();
+        // 借助全局变量
+        $this->global_id = $id;
+        // 每页显示数量
+        $perPage = 20;
+
+        $table = DB::table('movie_reviews');
+        $data = $table->where('m_id', '=', $id)
+            ->where('order_num','>=',$perPage*$page)
+            ->where('order_num','<',$perPage*$page + $perPage)
+            ->orderBy('order_num')
+            ->limit($perPage)
+            ->get()->toArray();
+
+        $total = count($data); // 查询总数
+        if ($total == 0) {
+            $data = $this->getReview($id, $page, $perPage);
+            if ($data == null){
+                return json_error("id无效");
+            }
+            // 先查询数据库中没有再插入
+            for($i=0; $i<count($data); $i++){
+                $data[$i]['order_num'] = $perPage * $page + $i;
+            }
+            $table->insert($data);
+        }
         $obj = [
-            'page'=>$page,
-            'limit'=>20,
-            "subject"=>$data
+            'page' => $page,
+            'limit' => $perPage,
+            "subject" => $data
         ];
         return json_success($obj);
     }
-
+    // 获取数据
+    private function getReview($id, $page, $perPage){
+        $url = 'https://movie.douban.com/subject/' . $id . '/comments?sort=new_score&status=P&limit='.$perPage.'&start=' . $page * $perPage;
+        $ql = QueryList::getInstance();
+        try {
+            $ql = $ql->get($url);
+        }catch (\Exception $e){
+            return null;
+        }
+        $data = $ql->find('#comments')->children('.comment-item ')->map(function ($item) {
+            $avatar = $item->find('.avatar img')->attr('src');
+            $name = $item->find('.comment-info>a')->text();
+            $name = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $name);
+            $rating = $item->find('.comment-info .rating')->attr('title');
+            $date = $item->find('.comment-info .comment-time')->text();
+            $content = $item->find('.comment-content .short')->text();
+            $content = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $content);
+            return [
+                'm_id'=> $this->global_id,
+                'avatar' => $avatar,
+                "name" => $name,
+                'rating' => $rating,
+                'date' => $date,
+                'content' => $content
+            ];
+        })->all();
+        return $data;
+    }
     // tag
     public function Get_tag($sort = 'U', $tags = '', $page = 0, $genres = '', $countries = '', $year_range = '')
     {
         //https://movie.douban.com/j/new_search_subjects?sort=U&range=0,10&tags=电影,经典&start=0&genres=剧情&countries=中国大陆&year_range=2020,2020
         //https://movie.douban.com/j/new_search_subjects?sort=U&tags=&start=0&genres=&countries=&year_range=
         //$sort = 'U', $tags = '', $page = 0, $genres = '', $countries = '', $year_range = ''
-        if ($page <=0 ) $page = 0;
+        if ($page <= 0) $page = 0;
         $page_start = $page * 20;
         $tagUrl = 'https://movie.douban.com/j/new_search_subjects?sort=' . $sort . '&range=0,10&tags=' . $tags . '&start=' . $page_start . '&genres=' . $genres . '&countries=' . $countries . '&year_range=' . $year_range;
         $apiData = json_decode(self::http_get($tagUrl), true);
@@ -322,8 +449,8 @@ class IndexController extends Controller
     // 高分电影
     public function Movie($MovieType = '豆瓣高分', $MovieSort = 'recommend', $page_limit = '24', $page = 0)
     {
-        if ($page <=0 ) $page = 0;
-        $page_start = $page* 24;
+        if ($page <= 0) $page = 0;
+        $page_start = $page * 24;
         $MovieUrl = 'https://movie.douban.com/j/search_subjects?type=movie&tag=' . $MovieType . '&sort=' . $MovieSort . '&page_limit=' . $page_limit . '&page_start=' . $page_start;
         $MovieData = self::http_get($MovieUrl);
         $MovieArr = json_decode($MovieData, true);
@@ -333,7 +460,7 @@ class IndexController extends Controller
     // 热门电影
     public function Tv($TvType = '热门', $TvSort = 'recommend', $page_limit = '24', $page = 0)
     {
-        if ($page <=0 ) $page = 0;
+        if ($page <= 0) $page = 0;
         $page_start = $page * 24;
         $TvUrl = 'https://movie.douban.com/j/search_subjects?type=tv&tag=' . $TvType . '&sort=' . $TvSort . '&page_limit=' . $page_limit . '&page_start=' . $page_start;
 
@@ -346,10 +473,10 @@ class IndexController extends Controller
     public function http_get($url)
     {
         $oCurl = curl_init();
-        $ip=mt_rand(11, 191).".".mt_rand(0, 240).".".mt_rand(1, 240).".".mt_rand(1, 240);
+        $ip = mt_rand(11, 191) . "." . mt_rand(0, 240) . "." . mt_rand(1, 240) . "." . mt_rand(1, 240);
         $header = array(
-            'CLIENT-IP:'.$ip,
-            'X-FORWARDED-FOR:'.$ip,
+            'CLIENT-IP:' . $ip,
+            'X-FORWARDED-FOR:' . $ip,
         );
         //构造ip
         curl_setopt($oCurl, CURLOPT_USERAGENT, 'Baiduspider+(+http://www.baidu.com/search/spider.htm)');
@@ -359,7 +486,7 @@ class IndexController extends Controller
             curl_setopt($oCurl, CURLOPT_SSLVERSION, 1);
         }
         //构造IP
-        curl_setopt($oCurl, CURLOPT_HTTPHEADER, array("X-FORWARDED-FOR:".$ip, 'CLIENT-IP:'.$ip));
+        curl_setopt($oCurl, CURLOPT_HTTPHEADER, array("X-FORWARDED-FOR:" . $ip, 'CLIENT-IP:' . $ip));
         curl_setopt($oCurl, CURLOPT_URL, $url);
         curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
         $sContent = curl_exec($oCurl);
@@ -373,7 +500,6 @@ class IndexController extends Controller
     }
 
 
-
     public function GetSubstr($str, $leftStr, $rightStr)
     {
         $left = strpos($str, $leftStr);
@@ -381,6 +507,7 @@ class IndexController extends Controller
         if ($left < 0 or $right < $left) return '';
         return substr($str, $left + strlen($leftStr), $right - $left - strlen($leftStr));
     }
+
     public function GetEpisodeUrl($UrlData)
     {
         if (strpos($UrlData, '<ul class="bs">') !== false) {

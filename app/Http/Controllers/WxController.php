@@ -40,7 +40,7 @@ class WxController extends Controller
         $data = json_decode($response->getBody()->getContents(),true);
 
         if (array_key_exists("errcode",$data)){
-            if ($data['errcode'] == 40163){
+            if($data['errcode'] == 40163){
                 return json_error("code过期");
             }
             return json_error("code无效");
