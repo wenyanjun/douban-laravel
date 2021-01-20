@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use QL\QueryList;
 use Illuminate\Support\Facades\Cache;
+use GuzzleHttp;
 
 class IndexController extends Controller
 {
@@ -189,13 +190,15 @@ class IndexController extends Controller
         $q = $request->input("q", "");
         $page = $request->input("page", 0) * 1;
         if ($page <= 0) $page = 0;
-
+//        $data = json_decode(self::http_get($SearchUrl), true);
         // 关键字
         $search = 'search' .$q.$page;
         $obj = null;
         $obj = Cache::remember($search,60*24*3,function () use ($page, $q, &$obj) {
             $SearchUrl = 'https://m.douban.com/j/search/?q=' . $q . '&t=movie&p=' . $page;
-            $data = json_decode(self::http_get($SearchUrl), true);
+            $client = new GuzzleHttp\Client();
+            $response = $client->get($SearchUrl);
+            $data = json_decode($response->getBody()->getContents(),true);
             $ql = QueryList::getInstance();
             $count = $data['count'];
             $limit = $data['limit'];
@@ -216,7 +219,6 @@ class IndexController extends Controller
             $obj = array('total' => $count, 'limit' => $limit, 'page' => $page, 'subject' => $data);
             return $obj;
         });
-
         return json_success($obj);
     }
 
@@ -475,11 +477,11 @@ class IndexController extends Controller
     public function http_get($url)
     {
         $oCurl = curl_init();
-        $ip = mt_rand(11, 191) . "." . mt_rand(0, 240) . "." . mt_rand(1, 240) . "." . mt_rand(1, 240);
-        $header = array(
-            'CLIENT-IP:' . $ip,
-            'X-FORWARDED-FOR:' . $ip,
-        );
+//        $ip = mt_rand(11, 191) . "." . mt_rand(0, 240) . "." . mt_rand(1, 240) . "." . mt_rand(1, 240);
+//        $header = array(
+//            'CLIENT-IP:' . $ip,
+//            'X-FORWARDED-FOR:' . $ip,
+//        );
         //构造ip
         curl_setopt($oCurl, CURLOPT_USERAGENT, 'Baiduspider+(+http://www.baidu.com/search/spider.htm)');
         if (stripos($url, "https://") !== FALSE) {
@@ -488,7 +490,7 @@ class IndexController extends Controller
             curl_setopt($oCurl, CURLOPT_SSLVERSION, 1);
         }
         //构造IP
-        curl_setopt($oCurl, CURLOPT_HTTPHEADER, array("X-FORWARDED-FOR:" . $ip, 'CLIENT-IP:' . $ip));
+//        curl_setopt($oCurl, CURLOPT_HTTPHEADER, array("X-FORWARDED-FOR:" . $ip, 'CLIENT-IP:' . $ip));
         curl_setopt($oCurl, CURLOPT_URL, $url);
         curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
         $sContent = curl_exec($oCurl);
