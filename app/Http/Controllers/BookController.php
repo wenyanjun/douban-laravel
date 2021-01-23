@@ -114,7 +114,7 @@ class BookController extends Controller {
         if (empty($id)){
             return json_error("id不能为空");
         }
-        $url = "https://book.douban.com/subject/1369777/comments/?start=$page_start&limit=20&status=P&sort=new_score";
+        $url = "https://book.douban.com/subject/$id/comments/?start=$page_start&limit=20&status=P&sort=new_score";
         $ql = QueryList::getInstance();
         $ql = $ql->get($url);
         $data = $ql->find("#comments ul")->children(".comment-item")->map(function ($item){
