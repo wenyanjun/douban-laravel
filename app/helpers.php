@@ -17,3 +17,9 @@ function json_error($msg='获取失败'){
     $obj['data'] = null;
     return json_encode($obj);
 }
+function unicodeDecode($unicode_str){
+    $json = '{"str":"'.$unicode_str.'"}';
+    $arr = json_decode($json,true);
+    if(empty($arr)) return '';
+    return $arr['str'];
+}

@@ -10,11 +10,13 @@ namespace App\Http\Controllers;
 // 豆瓣图书控制器
 use Illuminate\Http\Request;
 use QL\QueryList;
+use function GuzzleHttp\Promise\all;
 
 class BookController extends Controller {
     function index(){
 
     }
+    // top250
     function top250(Request $request){
         $page = $request->input("page", 0) * 1;
         if ($page <= 0) $page = 0;
@@ -57,14 +59,13 @@ class BookController extends Controller {
         $obj = array('total' => 250, 'limit' => $perPage, 'page' => $page, 'subject' => $data);
         return json_success($obj);
     }
-    function unicodeDecode($unicode_str){
-        $json = '{"str":"'.$unicode_str.'"}';
-        $arr = json_decode($json,true);
-        if(empty($arr)) return '';
-        return $arr['str'];
-    }
+    // 详情
     function info(Request $request){
-        $url = "https://book.douban.com/subject/1021847/";
+        $id = $request->input("id","");
+        if (empty($id)){
+            return json_error("id不能为空");
+        }
+        $url = "https://book.douban.com/subject/$id/";
         $ql = QueryList::getInstance();
         $ql = $ql->get($url);
         $title = $ql->find("h1 span")->text();
@@ -73,13 +74,16 @@ class BookController extends Controller {
         $info = str_replace("\\n",'',$info);
         $info = str_replace("[\"",'',$info);
         $info = str_replace("\"]",'',$info);
-        $info = self::unicodeDecode($info);
+        $info = unicodeDecode($info);
         $arr = array("出版社:","出版年:","页数:","定价:","装帧:","丛书:","ISBN:");
         $start = 0;
         $valus = array();
         for ($i=0; $i<count($arr); $i++){
             $v = $arr[$i];
             $end = strpos($info,$v);
+            if ($end == false){
+                continue;
+            }
             // 作者
             $actor = substr($info,$start,$end-$start);
             array_push($valus, $actor);
@@ -89,16 +93,95 @@ class BookController extends Controller {
         $isbn = substr($info, $start, -1);
         array_push($valus, $isbn);
         $img = $ql->find(".nbg img")->src;
-        $content = $ql->find(".intro p")->eq(0)->text();
-        $intro = $ql->find(".indent .intro p")->eq(1)->text();
+        $content = $ql->find(".intro p")->texts();
+//        $intro = $ql->find(".indent .intro p")->eq(1)->text();
 
         $obj = [
             "title"=>$title,
             "img"=>$img,
             "info"=>$valus,
             "content"=>$content,
-            "intro"=>$intro
         ];
+        return json_success($obj);
+    }
+    // 评论接口
+    function comments(Request $request){
+        $id = $request->input("id","");
+        $page = $request->input("page", 0) * 1;
+        if ($page <= 0) $page = 0;
+        $perPage = 20;
+        $page_start = $page * $perPage;
+        if (empty($id)){
+            return json_error("id不能为空");
+        }
+        $url = "https://book.douban.com/subject/1369777/comments/?start=$page_start&limit=20&status=P&sort=new_score";
+        $ql = QueryList::getInstance();
+        $ql = $ql->get($url);
+        $data = $ql->find("#comments ul")->children(".comment-item")->map(function ($item){
+            $avatar = $item->find(".avatar img")->src;
+            $name = $item->find(".comment-info a")->text();
+            $date = $item->find(".comment-info span")->text();
+            $rating = $item->find(".comment-info .rating")->attr("title");
+            $content = $item->find(".comment-content span")->text();
+            return [
+                'avatar'=>$avatar,
+                'name'=>$name,
+                "date"=>$date,
+                "rating"=>$rating,
+                "content"=>$content
+            ];
+        })->all();
+        for($i=0; $i<count($data); $i++){
+            $data[$i]['order_num'] = $perPage * $page + $i;
+        }
+        $obj = array('limit' => $perPage, 'page' => $page, 'subject' => $data);
+        return json_success($obj);
+    }
+
+    function search(){
+        $url = "https://search.douban.com/book/subject_search?search_text=%E9%92%A2%E9%93%81%E6%98%AF%E6%80%8E%E6%A0%B7%E7%82%BC%E6%88%90%E7%9A%84";
+        $ql = QueryList::getInstance();
+        $ql = $ql->get($url);
+        $data = $ql->find("._pyl31mqb1")->children(".sc-bxivhb")->map(function ($item){
+            $title = $item->find('.title a')->text();
+            return [
+                "title"=>$title
+            ];
+        })->all();
+        dd($data);
+    }
+    // 1.虚构类 2 非虚构类
+    function newBook(Request $request){
+        $type = $request->input("type",1)*1;
+
+        $url = "https://book.douban.com/latest?icn=index-latestbook-all";
+        $ql = QueryList::getInstance();
+        $ql = $ql->get($url);
+        $sel = '.article ul';
+        $title = "虚构类";
+        if ($type == 2){
+            $sel = '.aside ul';
+            $title = "非虚构类";
+        }
+        $data = $ql->find($sel)->children("li")->map(function ($item){
+            $id = $item->find(".cover")->href;
+            preg_match('#subject/([\s\S]*?)/#', $id, $ids);
+            $img = $item->find("img")->src;
+            $title = $item->find('.detail-frame h2 a')->text();
+            $score = $item->find('.detail-frame .font-small')->text();
+            $gray = $item->find('.detail-frame .color-gray')->text();
+            $detail = $item->find('.detail-frame p')->eq(2)->text();
+
+            return [
+                "id"=>$ids[1],
+                "title"=>$title,
+                "img"=>$img,
+                "score"=>$score,
+                "gray"=>$gray,
+                "detail"=>$detail
+            ];
+        })->all();
+        $obj = ['type'=>$title,"subject"=>$data];
         return json_success($obj);
     }
 }

@@ -44,6 +44,10 @@ Route::prefix('/wx')->group(function (){
 Route::prefix('/book')->group(function (){
     Route::get("top250",[BookController::class,"top250"]);
     Route::get("info",[BookController::class,"info"]);
+
+    Route::get("comments",[BookController::class,"comments"]);
+    Route::get("search",[BookController::class,'search']);
+    Route::get("newBook",[BookController::class,'newBook']);
 });
 
 //// 名人介绍
