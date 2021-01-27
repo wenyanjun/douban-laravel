@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use QL\QueryList;
 use Illuminate\Support\Facades\Cache;
 use GuzzleHttp;
+use Symfony\Component\VarDumper\Dumper\DataDumperInterface;
 
 class IndexController extends Controller
 {
@@ -140,17 +141,34 @@ class IndexController extends Controller
         return json_success($obj);
     }
 
+    public function client($url){
+        $client = new GuzzleHttp\Client();
+
+        $res = null;
+        try {
+            $res = $client->request('GET', $url, [
+                'headers' => [
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36',
+                ]
+            ]);
+        } catch (GuzzleHttp\Exception\GuzzleException $e) {
+
+        }
+        $html = (string)$res->getBody();
+        return $data = QueryList::html($html);
+    }
+
     // 即将上映
     public function showing(Request $request)
     {
         $city = $request->input("city", "guangzhou");
         $table = DB::table('showing');
         $data = $table->get()->toArray();
-        if (count($data) == 0) {
+        if (count($data) != 0) {
             $url = "https://movie.douban.com/cinema/later/$city/";
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
-            $data = $ql->find('#showing-soon')->children('div')->map(function ($item) {
+            $data = $ql->find('#showing-soon')->children('.item')->map(function ($item) {
                 $img = $item->find('img')->attr('src');
                 # id
                 $id = $item->find('a')->attr('href');

@@ -54,7 +54,7 @@ class Kernel extends ConsoleKernel
                 MovieDetail::query()->where('m_id','=',$m_id)->delete();
             }
             Playing::query()->truncate();
-        })->daily();
+        })->weekly();
     }
 
     /**
