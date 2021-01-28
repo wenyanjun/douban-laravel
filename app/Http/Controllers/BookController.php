@@ -178,16 +178,17 @@ class BookController extends Controller
     function newBook(Request $request)
     {
         $type = $request->input("type", 1) * 1;
-        $title = "";
-        $data = Cache::remember("newBook", 60 * 60 * 24, function () use ($type, &$title) {
+        $title = "虚构类";
+        if ($type == 2) {
+            $title = "非虚构类";
+        }
+        $data = Cache::remember("newBook", 60 * 60 * 24, function () use ($type, $title) {
             $url = "https://book.douban.com/latest?icn=index-latestbook-all";
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
             $sel = '.article ul';
-            $title = "虚构类";
             if ($type == 2) {
                 $sel = '.aside ul';
-                $title = "非虚构类";
             }
             $data = $ql->find($sel)->children("li")->map(function ($item) {
                 $id = $item->find(".cover")->href;

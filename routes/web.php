@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\IndexController;
+use App\Http\Controllers\PddController;
 use App\Http\Controllers\WxController;
 use Illuminate\Support\Facades\Route;
 
@@ -49,6 +50,15 @@ Route::prefix('/book')->group(function (){
     Route::get("search",[BookController::class,'search']);
     Route::get("newBook",[BookController::class,'newBook']);
 });
+// 拼多多
+Route::prefix("pdd")->group(function(){
+    // 搜索
+    Route::get("search",[PddController::class,"search"]);
+    Route::get("recommend",[PddController::class,"recommend"]);
+    // 备案
+    Route::get("generate",[PddController::class,"generate"]);
+});
+
 
 //// 名人介绍
 //Route::get("celebrity",'index/Index/Get_celebrity');
