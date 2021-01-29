@@ -84,7 +84,7 @@ class PddController extends Controller
         // 活动商品标记数组，例：[4,7]，4-秒杀，7-百亿补贴，31-品牌黑标，10564-精选爆品-官方直推爆款，
         // 10584-精选爆品-团长推荐，24-品牌高佣，20-行业精选，21-金牌商家，10044-潜力爆品，
         // 10475-爆品上新，10666-开年暖心补贴类目，其他的值请忽略
-        if (is_array($tags)){
+        if (empty($goodsId_list) || is_array($tags)){
             $request->setActivityTags($tags);
         }
 
@@ -143,7 +143,7 @@ class PddController extends Controller
         // 20900-男装，21000-水果，21100-家纺，21200-文具,21300-运动,21400-虚拟,21500-汽车,21600-家装,21700-家具,21800-医药;
         $request->setCatId($catId);
         // 进宝频道推广商品，0-1.9包邮, 1-今日爆款, 2-品牌好货,3-相似商品推荐,4-猜你喜欢,5-实时热销榜,6-实时收益榜,
-        // 7-今日热销榜,8-高佣榜单，默认值5
+        //        // 7-今日热销榜,8-高佣榜单，默认值5
         $request->setChannelType($type);
         $request->setCustomParameters(self::$customParam);
 //        $goodsIds = array();
@@ -173,7 +173,7 @@ class PddController extends Controller
     function detail(Request $req){
         $goodsId_list = $req->input("goodsId_list",[]);
         $search_id = $req->input("search_id","");
-        if (!is_array($goodsId_list)){
+        if (empty($goodsId_list) || !is_array($goodsId_list)){
             return json_error("参数传递错误, 格式为 goodsId_list[]=1&goodsId_list[]=2");
         }
         $request = new PddDdkGoodsDetailRequest();
@@ -201,7 +201,7 @@ class PddController extends Controller
     function promotion(Request $req){
         $search_id = $req->input("search_id","");
         $goodsId_list = $req->input("goodsId_list",[]);
-        if (!is_array($goodsId_list)){
+        if (empty($goodsId_list) || !is_array($goodsId_list)){
             return json_error("参数传递错误, 格式为 goodsId_list[]=1&goodsId_list[]=2");
         }
         $client = self::init();
