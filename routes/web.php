@@ -54,9 +54,14 @@ Route::prefix('/book')->group(function (){
 Route::prefix("pdd")->group(function(){
     // 搜索
     Route::get("search",[PddController::class,"search"]);
+    // 热销
     Route::get("recommend",[PddController::class,"recommend"]);
     // 备案
     Route::get("generate",[PddController::class,"generate"]);
+    // 商品详情
+    Route::get("detail",[PddController::class,"detail"]);
+    // 转链
+    Route::get("promotion",[PddController::class,'promotion']);
 });
 
 
