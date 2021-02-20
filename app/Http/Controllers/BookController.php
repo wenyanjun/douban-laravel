@@ -162,15 +162,17 @@ class BookController extends Controller
 
     function search()
     {
-        $url = "https://search.douban.com/book/subject_search?search_text=%E9%92%A2%E9%93%81%E6%98%AF%E6%80%8E%E6%A0%B7%E7%82%BC%E6%88%90%E7%9A%84";
+        $url = "https://search.douban.com/book/subject_search?search_text=9787020164653&cat=1001";
         $ql = QueryList::getInstance();
         $ql = $ql->get($url);
-        $data = $ql->find("._pyl31mqb1")->children(".sc-bxivhb")->map(function ($item) {
-            $title = $item->find('.title a')->text();
-            return [
-                "title" => $title
-            ];
-        })->all();
+        $data = $ql->find(".title")->texts();
+
+//        $data = $ql->find(".item-root")->children(".sc-bxivhb")->map(function ($item) {
+//            $title = $item->find('.title a')->text();
+//            return [
+//                "title" => $title
+//            ];
+//        })->all();
         dd($data);
     }
 
@@ -182,7 +184,7 @@ class BookController extends Controller
         if ($type == 2) {
             $title = "非虚构类";
         }
-        $data = Cache::remember("newBook", 60 * 60 * 24, function () use ($type, $title) {
+        $data = Cache::remember("newBook", 60 * 60 * 24 * 3, function () use ($type, $title) {
             $url = "https://book.douban.com/latest?icn=index-latestbook-all";
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);

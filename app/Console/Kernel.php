@@ -29,32 +29,32 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         // $schedule->command('inspire')->hourly();
-        $schedule->call(function (){
-            // 每天凌晨运行一次
-            // 即将上映
-            $showing = Showing::all()->toArray();
-            for($i=0; $i<count($showing); $i++){
-                $obj = $showing[$i];
-                $m_id = $obj['m_id'];
-                // 删除电影评论
-                MovieReviews::query()->where('m_id','=',$m_id)->delete();
-                // 删除电影详情
-                MovieDetail::query()->where('m_id','=',$m_id)->delete();
-            }
-            Showing::query()->truncate();
-
-            // 正在上映
-            $playing = Playing::all()->toArray();
-            for($i = 0; $i<count($playing); $i++){
-                $obj = $playing[$i];
-                $m_id = $obj['m_id'];
-                // 删除电影评论
-                MovieReviews::query()->where('m_id','=',$m_id)->delete();
-                // 删除电影详情
-                MovieDetail::query()->where('m_id','=',$m_id)->delete();
-            }
-            Playing::query()->truncate();
-        })->weekly();
+//        $schedule->call(function (){
+//            // 每天凌晨运行一次
+//            // 即将上映
+//            $showing = Showing::all()->toArray();
+//            for($i=0; $i<count($showing); $i++){
+//                $obj = $showing[$i];
+//                $m_id = $obj['m_id'];
+//                // 删除电影评论
+//                MovieReviews::query()->where('m_id','=',$m_id)->delete();
+//                // 删除电影详情
+//                MovieDetail::query()->where('m_id','=',$m_id)->delete();
+//            }
+//            Showing::query()->truncate();
+//
+//            // 正在上映
+//            $playing = Playing::all()->toArray();
+//            for($i = 0; $i<count($playing); $i++){
+//                $obj = $playing[$i];
+//                $m_id = $obj['m_id'];
+//                // 删除电影评论
+//                MovieReviews::query()->where('m_id','=',$m_id)->delete();
+//                // 删除电影详情
+//                MovieDetail::query()->where('m_id','=',$m_id)->delete();
+//            }
+//            Playing::query()->truncate();
+//        })->weekly();
     }
 
     /**

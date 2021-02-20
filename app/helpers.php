@@ -1,7 +1,12 @@
 <?php
+function common(){
+    $obj = [];
+    $obj['coderYJ'] = '简书关注coderYJ 欢迎加QQ群讨论277030213';
+    return $obj;
+}
 // 应用公共文件
 function json_success($data){
-    $obj['coderYJ'] = '简书关注coderYJ 欢迎加QQ群讨论277030213';
+    $obj = common();
     $obj['code'] = 200;
     $obj['msg'] = '请求成功';
     $obj['data'] = $data;
@@ -11,7 +16,7 @@ function json_success($data){
     return json_encode($obj);
 }
 function json_error($msg='获取失败'){
-    $obj['coderYJ'] = '简书关注coderYJ 欢迎加QQ群讨论277030213';
+    $obj = common();
     $obj['code'] = 400;
     $obj['msg'] = $msg;
     $obj['data'] = null;
