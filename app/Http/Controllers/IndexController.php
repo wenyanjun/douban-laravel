@@ -25,6 +25,7 @@ class IndexController extends Controller
     public function delete(){
         Cache::pull("showing");
         Cache::pull("playing");
+        return json_success("电影信息删除成功");
     }
     public function top250(Request $request)
     {

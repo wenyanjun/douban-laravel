@@ -4,6 +4,7 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\PddController;
 use App\Http\Controllers\WxController;
+use App\Http\Controllers\ZuFangController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -63,7 +64,11 @@ Route::prefix("pdd")->group(function(){
     // 转链
     Route::get("promotion",[PddController::class,'promotion']);
 });
-
+// 租房
+Route::prefix("zufang")->group(function(){
+    Route::get("/",[ZuFangController::class, "Index"]);
+    Route::get("/detail",[ZuFangController::class, "detail"]);
+});
 
 //// 名人介绍
 //Route::get("celebrity",'index/Index/Get_celebrity');
