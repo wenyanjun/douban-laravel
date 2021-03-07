@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\IndexController;
+use App\Http\Controllers\PhoneController;
 use App\Http\Controllers\WxController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,7 +19,11 @@ use Illuminate\Support\Facades\Route;
 //Route::get('/', function () {
 //    return view('welcome');
 //});
-Route::get('/', [IndexController::class, "index"]);
+
+Route::post("/phone",[PhoneController::class,"index"]);
+
+Route::post('/', [IndexController::class, "index"]);
+
 Route::get('/top250', [IndexController::class, "top250"]);
 
 Route::get('/playing',[IndexController::class,'playing']);

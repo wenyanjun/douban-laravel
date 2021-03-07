@@ -7,19 +7,23 @@
  */
 
 namespace App\Http\Controllers;
-
 use App\Models\MovieDetail;
 use App\Models\MovieReviews;
 use App\Models\Playing;
 use App\Models\Showing;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobExceptionOccurred;
+use Illuminate\Queue\Jobs\JobName;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use QL\QueryList;
 use Illuminate\Support\Facades\Cache;
+use Ramsey\Uuid\Type\Time;
+use ZipArchive;
 
 class IndexController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         return '简书关注coderYJ 欢迎加QQ群讨论277030213';
     }
@@ -143,9 +147,7 @@ class IndexController extends Controller
     public function showing(Request $request)
     {
         $city = $request->input("city", "guangzhou");
-        $table = DB::table('showing');
-        $data = $table->get()->toArray();
-        if (count($data) == 0) {
+        $data = Cache::remember("showing",24*60*60,function () use ($city){
             $url = "https://movie.douban.com/cinema/later/$city/";
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
@@ -172,9 +174,8 @@ class IndexController extends Controller
                     'see' => $see
                 ];
             })->all();
-            // 保存数据库
-            $table->insert($data);
-        }
+            return $data;
+        });
         $obj = array('title' => '即将上映', 'city' => $city, 'subject' => $data);
         return json_success($obj);
     }
@@ -581,4 +582,6 @@ class IndexController extends Controller
         }
         return $recommen_dations;
     }
+
+
 }
