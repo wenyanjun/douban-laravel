@@ -7,51 +7,24 @@
  */
 
 namespace App\Http\Controllers;
-use App\Models\MovieDetail;
-use App\Models\MovieReviews;
-use App\Models\Playing;
-use App\Models\Showing;
+use GuzzleHttp\Client;
 use Illuminate\Http\Request;
-use Illuminate\Queue\Events\JobExceptionOccurred;
-use Illuminate\Queue\Jobs\JobName;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use QL\QueryList;
 use Illuminate\Support\Facades\Cache;
-use Ramsey\Uuid\Type\Time;
-use ZipArchive;
+use QL\QueryList;
 
 class IndexController extends Controller
 {
-    public function index(Request $request)
+    // 设置3天过期
+    public $date_time = 60*60*24*3;
+
+    public function index()
     {
-        return '简书关注coderYJ 欢迎加QQ群讨论277030213';
+        return json_error();
     }
     public function delete(){
-        // 每天凌晨运行一次
-        // 即将上映
-        $showing = Showing::all()->toArray();
-        for($i=0; $i<count($showing); $i++){
-            $obj = $showing[$i];
-            $m_id = $obj['m_id'];
-            // 删除电影评论
-            MovieReviews::query()->where('m_id','=',$m_id)->delete();
-            // 删除电影详情
-            MovieDetail::query()->where('m_id','=',$m_id)->delete();
-        }
-        Showing::query()->truncate();
-
-        // 正在上映
-        $playing = Playing::all()->toArray();
-        for($i = 0; $i<count($playing); $i++){
-            $obj = $playing[$i];
-            $m_id = $obj['m_id'];
-            // 删除电影评论
-            MovieReviews::query()->where('m_id','=',$m_id)->delete();
-            // 删除电影详情
-            MovieDetail::query()->where('m_id','=',$m_id)->delete();
-        }
-        Playing::query()->truncate();
+        Cache::pull("showing");
+        Cache::pull("playing");
+        return json_success("电影信息删除成功");
     }
     public function top250(Request $request)
     {
@@ -61,14 +34,9 @@ class IndexController extends Controller
         // 每页显示数量
         $perPage = 25;
         $page_start = $page * $perPage;
-        $table = DB::table('top250');
-        $data = $table->where('order_num','>=',$perPage*$page)
-            ->where('order_num','<',$perPage*$page + $perPage)
-            ->orderBy('order_num')
-            ->limit($perPage)
-            ->get()->toArray();
+        $key = 'top250'.$page;
 
-        if (count($data) == 0){
+        $data = Cache::rememberForever($key,function () use ($page_start, $perPage, $page){
             $url = 'https://movie.douban.com/top250?start=' . $page_start;
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
@@ -101,8 +69,9 @@ class IndexController extends Controller
             for($i=0; $i<count($data); $i++){
                 $data[$i]['order_num'] = $perPage * $page + $i;
             }
-            $table->insert($data);
-        }
+            return $data;
+        });
+
         $obj = array('total' => 250, 'limit' => $perPage, 'page' => $page, 'subject' => $data);
         return json_success($obj);
     }
@@ -113,10 +82,7 @@ class IndexController extends Controller
 
         $city = $request->input("city", "guangzhou");
 
-        $table = DB::table('playing');
-        $data = $table->get()->toArray();
-
-        if (count($data) == 0) {
+        $data = Cache::remember("playing",$this->date_time, function () use ($city){
             $url = "https://movie.douban.com/cinema/nowplaying/$city/";
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
@@ -136,22 +102,39 @@ class IndexController extends Controller
                     'img' => $img
                 ];
             })->all();
-            // 保存数据库
-            $table->insert($data);
-        }
+            return $data;
+        });
         $obj = array('title' => '正在上映', 'city' => $city, 'subject' => $data);
         return json_success($obj);
+    }
+
+    public function client($url){
+        $client = new Client();
+
+        $res = null;
+        try {
+            $res = $client->request('GET', $url, [
+                'headers' => [
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36',
+                ]
+            ]);
+        } catch (GuzzleHttp\Exception\GuzzleException $e) {
+
+        }
+        $html = (string)$res->getBody();
+        return $data = QueryList::html($html);
     }
 
     // 即将上映
     public function showing(Request $request)
     {
         $city = $request->input("city", "guangzhou");
-        $data = Cache::remember("showing",24*60*60,function () use ($city){
+
+        $data = Cache::remember("showing",$this->date_time, function () use ($city){
             $url = "https://movie.douban.com/cinema/later/$city/";
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
-            $data = $ql->find('#showing-soon')->children('div')->map(function ($item) {
+            $data = $ql->find('#showing-soon')->children('.item')->map(function ($item) {
                 $img = $item->find('img')->attr('src');
                 # id
                 $id = $item->find('a')->attr('href');
@@ -190,13 +173,15 @@ class IndexController extends Controller
         $q = $request->input("q", "");
         $page = $request->input("page", 0) * 1;
         if ($page <= 0) $page = 0;
-
+//        $data = json_decode(self::http_get($SearchUrl), true);
         // 关键字
         $search = 'search' .$q.$page;
         $obj = null;
         $obj = Cache::remember($search,60*24*3,function () use ($page, $q, &$obj) {
             $SearchUrl = 'https://m.douban.com/j/search/?q=' . $q . '&t=movie&p=' . $page;
-            $data = json_decode(self::http_get($SearchUrl), true);
+            $client = new Client();
+            $response = $client->get($SearchUrl);
+            $data = json_decode($response->getBody()->getContents(),true);
             $ql = QueryList::getInstance();
             $count = $data['count'];
             $limit = $data['limit'];
@@ -217,7 +202,6 @@ class IndexController extends Controller
             $obj = array('total' => $count, 'limit' => $limit, 'page' => $page, 'subject' => $data);
             return $obj;
         });
-
         return json_success($obj);
     }
 
@@ -237,9 +221,8 @@ class IndexController extends Controller
         if (empty($id)) {
             return json_error("id不能为空");
         }
-        $table = DB::table("movie_detail");
-        $data = $table->where('m_id', '=', $id)->get()->toArray();
-        if (count($data) == 0) {
+        $key = 'info'.$id;
+        $data = Cache::rememberForever($key,function () use ($id){
             $url = 'https://movie.douban.com/subject/' . $id . '/';
             $ql = QueryList::getInstance();
             try {
@@ -281,15 +264,8 @@ class IndexController extends Controller
                 'rating' => $rating,
                 'summary' => $summary
             );
-            $table->insert($data);
-        } else {
-            $d = $data[0];
-            $d->scriptwriter = json_decode($d->scriptwriter, true);
-            $d->actor = json_decode($d->actor, true);
-            $d->type = json_decode($d->type, true);
-            $d->date = json_decode($d->date, true);
-            $data = $d;
-        }
+            return $data;
+        });
         return json_success($data);
     }
 
@@ -306,17 +282,9 @@ class IndexController extends Controller
 
         // 每页显示数量
         $perPage = 20;
+        $key = "reviews".$id.$page;
 
-        $table = DB::table('movie_reviews');
-        $data = $table->where('m_id', '=', $id)
-            ->where('order_num','>=',$perPage*$page)
-            ->where('order_num','<',$perPage*$page + $perPage)
-            ->orderBy('order_num')
-            ->limit($perPage)
-            ->get()->toArray();
-
-        $total = count($data); // 查询总数
-        if ($total == 0) {
+        $data = Cache::rememberForever($key,function () use ($id, $page, $perPage){
             $data = $this->getReview($id, $page, $perPage);
             if ($data == null){
                 return json_error("id无效");
@@ -325,8 +293,9 @@ class IndexController extends Controller
             for($i=0; $i<count($data); $i++){
                 $data[$i]['order_num'] = $perPage * $page + $i;
             }
-            $table->insert($data);
-        }
+            return $data;
+        });
+
         $obj = [
             'page' => $page,
             'limit' => $perPage,
@@ -476,11 +445,11 @@ class IndexController extends Controller
     public function http_get($url)
     {
         $oCurl = curl_init();
-        $ip = mt_rand(11, 191) . "." . mt_rand(0, 240) . "." . mt_rand(1, 240) . "." . mt_rand(1, 240);
-        $header = array(
-            'CLIENT-IP:' . $ip,
-            'X-FORWARDED-FOR:' . $ip,
-        );
+//        $ip = mt_rand(11, 191) . "." . mt_rand(0, 240) . "." . mt_rand(1, 240) . "." . mt_rand(1, 240);
+//        $header = array(
+//            'CLIENT-IP:' . $ip,
+//            'X-FORWARDED-FOR:' . $ip,
+//        );
         //构造ip
         curl_setopt($oCurl, CURLOPT_USERAGENT, 'Baiduspider+(+http://www.baidu.com/search/spider.htm)');
         if (stripos($url, "https://") !== FALSE) {
@@ -489,7 +458,7 @@ class IndexController extends Controller
             curl_setopt($oCurl, CURLOPT_SSLVERSION, 1);
         }
         //构造IP
-        curl_setopt($oCurl, CURLOPT_HTTPHEADER, array("X-FORWARDED-FOR:" . $ip, 'CLIENT-IP:' . $ip));
+//        curl_setopt($oCurl, CURLOPT_HTTPHEADER, array("X-FORWARDED-FOR:" . $ip, 'CLIENT-IP:' . $ip));
         curl_setopt($oCurl, CURLOPT_URL, $url);
         curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
         $sContent = curl_exec($oCurl);
@@ -582,6 +551,4 @@ class IndexController extends Controller
         }
         return $recommen_dations;
     }
-
-
 }
