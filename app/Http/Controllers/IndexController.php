@@ -178,6 +178,8 @@ class IndexController extends Controller
         $search = 'search' .$q.$page;
         $obj = null;
         $obj = Cache::remember($search,60*24*3,function () use ($page, $q, &$obj) {
+            // $url = "https://movie.douban.com/j/subject_suggest?q=q";
+
             $SearchUrl = 'https://m.douban.com/j/search/?q=' . $q . '&t=movie&p=' . $page;
             $client = new Client();
             $response = $client->get($SearchUrl);
