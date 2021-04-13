@@ -14,8 +14,8 @@ use QL\QueryList;
 
 class IndexController extends Controller
 {
-    // 设置3天过期
-    public $date_time = 60*60*24*3;
+    // 设置15天过期
+    public $date_time = 60*60*24*15;
 
     public function index()
     {
@@ -34,9 +34,9 @@ class IndexController extends Controller
         // 每页显示数量
         $perPage = 25;
         $page_start = $page * $perPage;
-        $key = 'top250'.$page;
+        $key = 'movie_top250'.$page;
 
-        $data = Cache::rememberForever($key,function () use ($page_start, $perPage, $page){
+        $data = Cache::tags("movie")->rememberForever($key,function () use ($page_start, $perPage, $page){
             $url = 'https://movie.douban.com/top250?start=' . $page_start;
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
