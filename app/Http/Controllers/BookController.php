@@ -29,7 +29,7 @@ class BookController extends Controller
         $perPage = 25;
         $page_start = $page * $perPage;
         $data = null;
-        $data = Cache::tags("book")->rememberForever("book_top250" . $page, function () use ($page_start, &$data) {
+        $data = Cache::rememberForever("book_top250" . $page, function () use ($page_start, &$data) {
             $url = "https://www.douban.com/doulist/513669/?start=$page_start&sort=time&playable=0&sub_type=";
             $q = QueryList::getInstance();
             $q = $q->get($url);

@@ -33,6 +33,7 @@ Route::prefix('/movie')->group(function (){
     // review 影片评论
     Route::get("reviews", [IndexController::class,'reviews']);
     Route::get("delete",[IndexController::class, 'delete']);
+    Route::get("deleteAll",[IndexController::class, 'deleteAll']);
 });
 // 微信
 Route::prefix('/wx')->group(function (){

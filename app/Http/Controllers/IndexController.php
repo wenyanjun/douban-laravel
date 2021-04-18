@@ -26,6 +26,10 @@ class IndexController extends Controller
         Cache::pull("playing");
         return json_success("电影信息删除成功");
     }
+    public function deleteAll(){
+        Cache::flush();
+        return json_success("缓存信息删除成功");
+    }
     public function top250(Request $request)
     {
         $page = $request->input("page", 0) * 1;
@@ -35,8 +39,7 @@ class IndexController extends Controller
         $perPage = 25;
         $page_start = $page * $perPage;
         $key = 'movie_top250'.$page;
-
-        $data = Cache::tags("movie")->rememberForever($key,function () use ($page_start, $perPage, $page){
+        $data = Cache::rememberForever($key,function () use ($page_start, $perPage, $page){
             $url = 'https://movie.douban.com/top250?start=' . $page_start;
             $ql = QueryList::getInstance();
             $ql = $ql->get($url);
@@ -60,9 +63,9 @@ class IndexController extends Controller
                 return [
                     'm_id' => $ids[1],
                     'img' => $img,
-                    'name' => $name,
+                    'title' => $name,
                     'director' => $director,
-                    'star' => $star,
+                    'score' => $star,
                     'quote' => $quote
                 ];
             })->all();
